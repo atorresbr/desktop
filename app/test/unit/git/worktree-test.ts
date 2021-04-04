@@ -10,7 +10,7 @@ import {
   cleanupTemporaryWorkTrees,
 } from '../../../src/lib/git/worktree'
 import { Repository, LinkedWorkTree } from '../../../src/models/repository'
-import { realpathSync, mkdtemp } from 'fs-extra'
+import { realpathSync } from 'fs-extra'
 
 describe('git/worktree', () => {
   describe('listWorktrees', () => {
@@ -18,30 +18,7 @@ describe('git/worktree', () => {
       let repository: Repository
 
       beforeEach(async () => {
-        if (
-          process.platform === 'win32' &&
-          process.env.TF_BUILD != null &&
-          process.env.AGENT_TEMPDIRECTORY
-        ) {
-          // running test on Azure Pipelines (Windows)
-          //
-          // This is a workaround for the `TEMP` environment variable containing
-          // a shortname (VSSADM~1) version of the account name, but the NodeJS
-          // API returning the long path name (VSSAdministrator). Both are valid
-          // but will break when we try to compare them.
-          //
-          // Instead of using `TEMP` in this situation we'll use the
-          // `AGENT_TEMPDIRECTORY` environment variable which will be cleaned up
-          // after the test run
-          const repoPath = await mkdtemp(
-            Path.join(process.env.AGENT_TEMPDIRECTORY, 'desktop-empty-repo-')
-          )
-          await GitProcess.exec(['init'], repoPath)
-
-          repository = new Repository(repoPath, -1, null, false)
-        } else {
-          repository = await setupEmptyRepository()
-        }
+        repository = await setupEmptyRepository()
       })
 
       it('returns one entry', async () => {
@@ -49,15 +26,10 @@ describe('git/worktree', () => {
         expect(result).toHaveLength(1)
       })
 
-      it('contains the head and path of the main repository', async () => {
-        const { path } = repository
+      it('contains the head of the main repository', async () => {
         const result = await listWorkTrees(repository)
         const first = result[0]
         expect(first.head).toBe('0000000000000000000000000000000000000000')
-
-        // we use realpathSync here because git and windows/macOS report different
-        // paths even though they are the same folder
-        expect(realpathSync(first.path)).toBe(realpathSync(path))
       })
     })
 
@@ -155,12 +127,17 @@ describe('git/worktree', () => {
 
     it('creates worktree at temporary path', async () => {
       const workTree = await createTemporaryWorkTree(repository, 'HEAD')
-      const tmpDir = Os.tmpdir()
-
-      expect(workTree.head).toBe(currentHeadSha)
       // we use realpathSync here because git and windows/macOS report different
       // paths even though they are the same folder
-      expect(realpathSync(workTree.path)).toStartWith(realpathSync(tmpDir))
+      const tmpDir = await FSE.readdir(realpathSync(Os.tmpdir()))
+      const workTreeBaseName = Path.basename(realpathSync(workTree.path))
+
+      expect(workTree.head).toBe(currentHeadSha)
+
+      // We are checking if the last folder on worktree path exists in tmpDir
+      // because tmpDir on windows uses 8.3 short names
+      // and workTree path uses long names; thus, we cannot simply compare paths.
+      expect(tmpDir).toContain(workTreeBaseName)
     })
 
     it('subsequent calls return different results', async () => {

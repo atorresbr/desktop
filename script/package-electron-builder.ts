@@ -4,7 +4,7 @@ import * as path from 'path'
 import * as cp from 'child_process'
 import { promisify } from 'util'
 
-import * as glob from 'glob'
+import glob = require('glob')
 const globPromise = promisify(glob)
 
 import { getDistPath, getDistRoot } from './dist-info'

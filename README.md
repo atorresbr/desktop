@@ -1,12 +1,10 @@
 # [GitHub Desktop](https://desktop.github.com) - The Linux Fork
 
 [![Build Status](https://brendanforster.visualstudio.com/desktop-linux/_apis/build/status/Azure%20Pipelines%20Build?branchName=linux)](https://brendanforster.visualstudio.com/desktop-linux/_build/latest?definitionId=10&branchName=linux)
-[![license](https://img.shields.io/github/license/desktop/desktop.svg?style=flat-square)](https://github.com/desktop/desktop/blob/development/LICENSE)
-![90+% TypeScript](https://img.shields.io/github/languages/top/desktop/desktop.svg?style=flat-square&colorB=green)
 
-GitHub Desktop is an open source [Electron](https://electron.atom.io)-based
+GitHub Desktop is an open source [Electron](https://www.electronjs.org/)-based
 GitHub app. It is written in [TypeScript](http://www.typescriptlang.org) and
-uses [React](https://facebook.github.io/react/).
+uses [React](https://reactjs.org/).
 
 ![GitHub Desktop screenshot - Windows](https://cloud.githubusercontent.com/assets/359239/26094502/a1f56d02-3a5d-11e7-8799-23c7ba5e5106.png)
 
@@ -36,7 +34,7 @@ the project using the link in the header.
 To setup the package repository, run these commands:
 
 ```sh
-$ wget -qO - https://packagecloud.io/shiftkey/desktop/gpgkey | sudo apt-key add -
+$ wget -qO - https://packagecloud.io/shiftkey/desktop/gpgkey | sudo tee /etc/apt/trusted.gpg.d/shiftkey-desktop.asc > /dev/null
 $ sudo sh -c 'echo "deb [arch=amd64] https://packagecloud.io/shiftkey/desktop/any/ any main" > /etc/apt/sources.list.d/packagecloud-shiftky-desktop.list'
 $ sudo apt-get update
 ```

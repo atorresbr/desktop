@@ -2,9 +2,7 @@ import * as React from 'react'
 
 import { Repository } from '../../models/repository'
 import { Dispatcher } from '../dispatcher'
-import { sanitizedRefName } from '../../lib/sanitize-ref-name'
 import { Branch, StartPoint } from '../../models/branch'
-import { TextBox } from '../lib/text-box'
 import { Row } from '../lib/row'
 import { Ref } from '../lib/ref'
 import { LinkButton } from '../lib/link-button'
@@ -20,37 +18,47 @@ import {
   IValidBranch,
 } from '../../models/tip'
 import { assertNever } from '../../lib/fatal-error'
-import {
-  renderBranchNameWarning,
-  renderBranchNameExistsOnRemoteWarning,
-} from '../lib/branch-name-warnings'
+import { renderBranchNameExistsOnRemoteWarning } from '../lib/branch-name-warnings'
 import { getStartPoint } from '../../lib/create-branch'
 import { OkCancelButtonGroup } from '../dialog/ok-cancel-button-group'
 import { startTimer } from '../lib/timing'
-import {
-  UncommittedChangesStrategy,
-  UncommittedChangesStrategyKind,
-} from '../../models/uncommitted-changes-strategy'
 import { GitHubRepository } from '../../models/github-repository'
+import { RefNameTextBox } from '../lib/ref-name-text-box'
 
 interface ICreateBranchProps {
   readonly repository: Repository
   readonly upstreamGitHubRepository: GitHubRepository | null
   readonly dispatcher: Dispatcher
   readonly onDismissed: () => void
+  /**
+   * If provided, the branch creation is handled by the given method.
+   *
+   * It is also responsible for dismissing the popup.
+   */
+  readonly createBranch?: (
+    name: string,
+    startPoint: string | null,
+    noTrack: boolean
+  ) => void
   readonly tip: IUnbornRepository | IDetachedHead | IValidBranch
   readonly defaultBranch: Branch | null
   readonly upstreamDefaultBranch: Branch | null
   readonly allBranches: ReadonlyArray<Branch>
   readonly initialName: string
-  readonly currentBranchProtected: boolean
-  readonly selectedUncommittedChangesStrategy: UncommittedChangesStrategy
+  /**
+   * If provided, use as the okButtonText
+   */
+  readonly okButtonText?: string
+
+  /**
+   * If provided, use as the header
+   */
+  readonly headerText?: string
 }
 
 interface ICreateBranchState {
   readonly currentError: Error | null
-  readonly proposedName: string
-  readonly sanitizedName: string
+  readonly branchName: string
   readonly startPoint: StartPoint
 
   /**
@@ -94,18 +102,11 @@ export class CreateBranch extends React.Component<
 
     this.state = {
       currentError: null,
-      proposedName: props.initialName,
-      sanitizedName: '',
+      branchName: props.initialName,
       startPoint,
       isCreatingBranch: false,
       tipAtCreateStart: props.tip,
       defaultBranchAtCreateStart: getBranchForStartPoint(startPoint, props),
-    }
-  }
-
-  public componentDidMount() {
-    if (this.state.proposedName.length) {
-      this.updateBranchName(this.state.proposedName)
     }
   }
 
@@ -183,15 +184,15 @@ export class CreateBranch extends React.Component<
 
   public render() {
     const disabled =
-      this.state.proposedName.length <= 0 ||
+      this.state.branchName.length <= 0 ||
       !!this.state.currentError ||
-      /^\s*$/.test(this.state.sanitizedName)
+      /^\s*$/.test(this.state.branchName)
     const error = this.state.currentError
 
     return (
       <Dialog
         id="create-branch"
-        title={__DARWIN__ ? 'Create a Branch' : 'Create a branch'}
+        title={this.getHeaderText()}
         onSubmit={this.createBranch}
         onDismissed={this.props.onDismissed}
         loading={this.state.isCreatingBranch}
@@ -200,22 +201,14 @@ export class CreateBranch extends React.Component<
         {error ? <DialogError>{error.message}</DialogError> : null}
 
         <DialogContent>
-          <Row>
-            <TextBox
-              label="Name"
-              value={this.state.proposedName}
-              autoFocus={true}
-              onValueChanged={this.onBranchNameChange}
-            />
-          </Row>
-
-          {renderBranchNameWarning(
-            this.state.proposedName,
-            this.state.sanitizedName
-          )}
+          <RefNameTextBox
+            label="Name"
+            initialValue={this.props.initialName}
+            onValueChange={this.onBranchNameChange}
+          />
 
           {renderBranchNameExistsOnRemoteWarning(
-            this.state.sanitizedName,
+            this.state.branchName,
             this.props.allBranches
           )}
 
@@ -224,7 +217,7 @@ export class CreateBranch extends React.Component<
 
         <DialogFooter>
           <OkCancelButtonGroup
-            okButtonText={__DARWIN__ ? 'Create Branch' : 'Create branch'}
+            okButtonText={this.getOkButtonText()}
             okButtonDisabled={disabled}
           />
         </DialogFooter>
@@ -232,38 +225,47 @@ export class CreateBranch extends React.Component<
     )
   }
 
+  private getHeaderText = (): string => {
+    if (this.props.headerText !== undefined) {
+      return this.props.headerText
+    }
+
+    return __DARWIN__ ? 'Create a Branch' : 'Create a branch'
+  }
+
+  private getOkButtonText = (): string => {
+    if (this.props.okButtonText !== undefined) {
+      return this.props.okButtonText
+    }
+
+    return __DARWIN__ ? 'Create Branch' : 'Create branch'
+  }
+
   private onBranchNameChange = (name: string) => {
     this.updateBranchName(name)
   }
 
-  private updateBranchName(name: string) {
-    const sanitizedName = sanitizedRefName(name)
+  private updateBranchName(branchName: string) {
     const alreadyExists =
-      this.props.allBranches.findIndex(b => b.name === sanitizedName) > -1
+      this.props.allBranches.findIndex(b => b.name === branchName) > -1
 
     const currentError = alreadyExists
-      ? new Error(`A branch named ${sanitizedName} already exists`)
+      ? new Error(`A branch named ${branchName} already exists`)
       : null
 
     this.setState({
-      proposedName: name,
-      sanitizedName,
+      branchName,
       currentError,
     })
   }
 
   private createBranch = async () => {
-    const name = this.state.sanitizedName
+    const name = this.state.branchName
 
     let startPoint: string | null = null
     let noTrack = false
 
-    const {
-      defaultBranch,
-      upstreamDefaultBranch,
-      currentBranchProtected,
-      repository,
-    } = this.props
+    const { defaultBranch, upstreamDefaultBranch, repository } = this.props
 
     if (this.state.startPoint === StartPoint.DefaultBranch) {
       // This really shouldn't happen, we take all kinds of precautions
@@ -292,24 +294,23 @@ export class CreateBranch extends React.Component<
     }
 
     if (name.length > 0) {
-      // never prompt to stash changes if someone is switching away from a protected branch
-      const strategy: UncommittedChangesStrategy = currentBranchProtected
-        ? {
-            kind: UncommittedChangesStrategyKind.MoveToNewBranch,
-            transientStashEntry: null,
-          }
-        : this.props.selectedUncommittedChangesStrategy
-
       this.setState({ isCreatingBranch: true })
+
+      // If createBranch is provided, use it instead of dispatcher
+      if (this.props.createBranch !== undefined) {
+        this.props.createBranch(name, startPoint, noTrack)
+        return
+      }
+
       const timer = startTimer('create branch', repository)
       await this.props.dispatcher.createBranch(
         repository,
         name,
         startPoint,
-        strategy,
         noTrack
       )
       timer.done()
+      this.props.onDismissed()
     }
   }
 

@@ -164,6 +164,7 @@ function getRepositoryMenuBuilder(state: IAppState): MenuStateBuilder {
   let branchIsUnborn = false
   let rebaseInProgress = false
   let branchHasStashEntry = false
+
   // check that its a github repo and if so, that is has issues enabled
   const repoIssuesEnabled =
     selectedState !== null &&
@@ -192,6 +193,8 @@ function getRepositoryMenuBuilder(state: IAppState): MenuStateBuilder {
     if (tip.kind === TipState.Valid) {
       if (defaultBranch !== null) {
         onNonDefaultBranch = tip.branch.name !== defaultBranch.name
+      } else {
+        onNonDefaultBranch = true
       }
 
       hasPublishedBranch = !!tip.branch.upstream
@@ -242,7 +245,9 @@ function getRepositoryMenuBuilder(state: IAppState): MenuStateBuilder {
 
     menuStateBuilder.setEnabled(
       'rename-branch',
-      onNonDefaultBranch && !branchIsUnborn && !onDetachedHead
+      (onNonDefaultBranch || !hasPublishedBranch) &&
+        !branchIsUnborn &&
+        !onDetachedHead
     )
     menuStateBuilder.setEnabled(
       'delete-branch',

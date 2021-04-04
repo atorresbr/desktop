@@ -1,7 +1,7 @@
 import { promisify } from 'util'
 import { join } from 'path'
 
-import * as glob from 'glob'
+import glob = require('glob')
 const globPromise = promisify(glob)
 
 import { rename } from 'fs-extra'
@@ -42,10 +42,6 @@ const options: RedhatOptions = {
     'This is the unofficial port of GitHub Desktop for Linux distributions',
   categories: ['GNOME', 'GTK', 'Development'],
   requires: [
-    // default Electron dependencies
-    'libXScrnSaver',
-    'libX11-xcb',
-    'alsa-lib',
     // dugite-native dependencies
     '(libcurl or libcurl4)',
     // keytar dependencies
@@ -53,6 +49,9 @@ const options: RedhatOptions = {
     'gnome-keyring',
   ],
   icon: {
+    '32x32': 'app/static/logos/32x32.png',
+    '64x64': 'app/static/logos/64x64.png',
+    '128x128': 'app/static/logos/128x128.png',
     '256x256': 'app/static/logos/256x256.png',
     '512x512': 'app/static/logos/512x512.png',
     '1024x1024': 'app/static/logos/1024x1024.png',

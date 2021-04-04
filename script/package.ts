@@ -3,13 +3,12 @@
 import * as fs from 'fs-extra'
 import * as cp from 'child_process'
 import * as path from 'path'
-import * as crypto from 'crypto'
 import * as electronInstaller from 'electron-winstaller'
+import * as crypto from 'crypto'
 
 import { getProductName, getCompanyName } from '../app/package-info'
 import {
   getDistPath,
-  getDistRoot,
   getOSXZipPath,
   getWindowsIdentifierName,
   getWindowsStandaloneName,
@@ -17,8 +16,9 @@ import {
   shouldMakeDelta,
   getUpdatesURL,
   getIconFileName,
+  getDistRoot,
 } from './dist-info'
-import { isAppveyor } from './build-platforms'
+import { isAppveyor, isGitHubActions } from './build-platforms'
 
 import { packageElectronBuilder } from './package-electron-builder'
 import { packageDebian } from './package-debian'
@@ -43,10 +43,10 @@ function packageOSX() {
   const dest = getOSXZipPath()
   fs.removeSync(dest)
 
+  console.log('Packaging for macOS…')
   cp.execSync(
     `ditto -ck --keepParent "${distPath}/${productName}.app" "${dest}"`
   )
-  console.log(`Zipped to ${dest}`)
 }
 
 function packageWindows() {
@@ -59,8 +59,9 @@ function packageWindows() {
     'cleanup-windows-certificate.ps1'
   )
 
-  if (isAppveyor()) {
-    cp.execSync(`powershell ${setupCertificatePath}`)
+  if (isAppveyor() || isGitHubActions()) {
+    console.log('Installing signing certificate…')
+    cp.execSync(`powershell ${setupCertificatePath}`, { stdio: 'inherit' })
   }
 
   const iconSource = path.join(
@@ -110,11 +111,12 @@ function packageWindows() {
     options.remoteReleases = getUpdatesURL()
   }
 
-  if (isAppveyor()) {
+  if (isAppveyor() || isGitHubActions()) {
     const certificatePath = path.join(__dirname, 'windows-certificate.pfx')
     options.signWithParams = `/f ${certificatePath} /p ${process.env.WINDOWS_CERT_PASSWORD} /tr http://timestamp.digicert.com /td sha256 /fd sha256`
   }
 
+  console.log('Packaging for Windows…')
   electronInstaller
     .createWindowsInstaller(options)
     .then(() => {

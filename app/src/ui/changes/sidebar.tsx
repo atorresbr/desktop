@@ -27,13 +27,14 @@ import {
 } from '../autocompletion'
 import { ClickSource } from '../lib/list'
 import { WorkingDirectoryFileChange } from '../../models/status'
-import { CSSTransitionGroup } from 'react-transition-group'
+import { TransitionGroup, CSSTransition } from 'react-transition-group'
 import { openFile } from '../lib/open-file'
 import { Account } from '../../models/account'
 import { PopupType } from '../../models/popup'
 import { filesNotTrackedByLFS } from '../../lib/git/lfs'
 import { getLargeFilePaths } from '../../lib/large-files'
 import { isConflictedFile, hasUnresolvedConflicts } from '../../lib/status'
+import { getAccountForRepository } from '../../lib/get-account-for-repository'
 
 /**
  * The timeout for the animation of the enter/leave animation for Undo.
@@ -76,6 +77,8 @@ interface IChangesSidebarProps {
    * arrow pointing at the commit summary box
    */
   readonly shouldNudgeToCommit: boolean
+
+  readonly commitSpellcheckEnabled: boolean
 }
 
 export class ChangesSidebar extends React.Component<IChangesSidebarProps, {}> {
@@ -262,6 +265,7 @@ export class ChangesSidebar extends React.Component<IChangesSidebarProps, {}> {
 
   /**
    * Open file with default application.
+   *
    * @param path The path of the file relative to the root of the repository
    */
   private onOpenItem = (path: string) => {
@@ -328,27 +332,23 @@ export class ChangesSidebar extends React.Component<IChangesSidebarProps, {}> {
     // the commit won't be completely deleted because the tag will still point to it.
     if (commit && commit.tags.length === 0) {
       child = (
-        <UndoCommit
-          isPushPullFetchInProgress={this.props.isPushPullFetchInProgress}
-          commit={commit}
-          onUndo={this.onUndo}
-          emoji={this.props.emoji}
-          isCommitting={this.props.isCommitting}
-        />
+        <CSSTransition
+          classNames="undo"
+          appear={true}
+          timeout={UndoCommitAnimationTimeout}
+        >
+          <UndoCommit
+            isPushPullFetchInProgress={this.props.isPushPullFetchInProgress}
+            commit={commit}
+            onUndo={this.onUndo}
+            emoji={this.props.emoji}
+            isCommitting={this.props.isCommitting}
+          />
+        </CSSTransition>
       )
     }
 
-    return (
-      <CSSTransitionGroup
-        transitionName="undo"
-        transitionAppear={true}
-        transitionAppearTimeout={UndoCommitAnimationTimeout}
-        transitionEnterTimeout={UndoCommitAnimationTimeout}
-        transitionLeaveTimeout={UndoCommitAnimationTimeout}
-      >
-        {child}
-      </CSSTransitionGroup>
-    )
+    return <TransitionGroup>{child}</TransitionGroup>
   }
 
   private renderUndoCommit = (
@@ -384,12 +384,17 @@ export class ChangesSidebar extends React.Component<IChangesSidebarProps, {}> {
         : []
 
     const isShowingStashEntry = selection.kind === ChangesSelectionKind.Stash
+    const repositoryAccount = getAccountForRepository(
+      this.props.accounts,
+      this.props.repository
+    )
 
     return (
       <div className="panel">
         <ChangesList
           dispatcher={this.props.dispatcher}
           repository={this.props.repository}
+          repositoryAccount={repositoryAccount}
           workingDirectory={workingDirectory}
           conflictState={conflictState}
           rebaseConflictState={rebaseConflictState}
@@ -423,6 +428,7 @@ export class ChangesSidebar extends React.Component<IChangesSidebarProps, {}> {
           isShowingStashEntry={isShowingStashEntry}
           currentBranchProtected={currentBranchProtected}
           shouldNudgeToCommit={this.props.shouldNudgeToCommit}
+          commitSpellcheckEnabled={this.props.commitSpellcheckEnabled}
         />
         {this.renderUndoCommit(rebaseConflictState)}
       </div>

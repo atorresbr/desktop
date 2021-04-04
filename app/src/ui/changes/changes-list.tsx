@@ -13,6 +13,7 @@ import { DiffSelectionType } from '../../models/diff'
 import { CommitIdentity } from '../../models/commit-identity'
 import { ICommitMessage } from '../../models/commit-message'
 import { Repository } from '../../models/repository'
+import { Account } from '../../models/account'
 import { IAuthor } from '../../models/author'
 import { List, ClickSource } from '../lib/list'
 import { Checkbox, CheckboxValue } from '../lib/checkbox'
@@ -35,7 +36,7 @@ import { RebaseConflictState, ConflictState } from '../../lib/app-state'
 import { ContinueRebase } from './continue-rebase'
 import { Octicon, OcticonSymbol } from '../octicons'
 import { IStashEntry } from '../../models/stash-entry'
-import * as classNames from 'classnames'
+import classNames from 'classnames'
 import { hasWritePermission } from '../../models/github-repository'
 import { hasConflictedFiles } from '../../lib/status'
 
@@ -43,11 +44,15 @@ const RowHeight = 29
 const StashIcon = new OcticonSymbol(
   16,
   16,
-  'M3.002 15H15V4c.51 0 1 .525 1 .996V15c0 .471-.49 1-1 1H4.002c-.51 ' +
-    '0-1-.529-1-1zm-2-2H13V2c.51 0 1 .525 1 .996V13c0 .471-.49 1-1 ' +
-    '1H2.002c-.51 0-1-.529-1-1zm10.14-13A.86.86 0 0 1 12 .857v10.286a.86.86 ' +
-    '0 0 1-.857.857H.857A.86.86 0 0 1 0 11.143V.857A.86.86 0 0 1 .857 0h10.286zM11 ' +
-    '11V1H1v10h10zM3 6c0-1.66 1.34-3 3-3s3 1.34 3 3-1.34 3-3 3-3-1.34-3-3z'
+  'M10.5 1.286h-9a.214.214 0 0 0-.214.214v9a.214.214 0 0 0 .214.214h9a.214.214 0 0 0 ' +
+    '.214-.214v-9a.214.214 0 0 0-.214-.214zM1.5 0h9A1.5 1.5 0 0 1 12 1.5v9a1.5 1.5 0 0 1-1.5 ' +
+    '1.5h-9A1.5 1.5 0 0 1 0 10.5v-9A1.5 1.5 0 0 1 1.5 0zm5.712 7.212a1.714 1.714 0 1 ' +
+    '1-2.424-2.424 1.714 1.714 0 0 1 2.424 2.424zM2.015 12.71c.102.729.728 1.29 1.485 ' +
+    '1.29h9a1.5 1.5 0 0 0 1.5-1.5v-9a1.5 1.5 0 0 0-1.29-1.485v1.442a.216.216 0 0 1 ' +
+    '.004.043v9a.214.214 0 0 1-.214.214h-9a.216.216 0 0 1-.043-.004H2.015zm2 2c.102.729.728 ' +
+    '1.29 1.485 1.29h9a1.5 1.5 0 0 0 1.5-1.5v-9a1.5 1.5 0 0 0-1.29-1.485v1.442a.216.216 0 0 1 ' +
+    '.004.043v9a.214.214 0 0 1-.214.214h-9a.216.216 0 0 1-.043-.004H4.015z',
+  'evenodd'
 )
 
 const GitIgnoreFileName = '.gitignore'
@@ -93,6 +98,7 @@ function getIncludeAllValue(
 
 interface IChangesListProps {
   readonly repository: Repository
+  readonly repositoryAccount: Account | null
   readonly workingDirectory: WorkingDirectoryStatus
   /**
    * An object containing the conflicts in the working directory.
@@ -121,6 +127,7 @@ interface IChangesListProps {
 
   /**
    * Called to open a file it its default application
+   *
    * @param path The path of the file relative to the root of the repository
    */
   readonly onOpenItem: (path: string) => void
@@ -181,6 +188,8 @@ interface IChangesListProps {
    * arrow pointing at the commit summary box
    */
   readonly shouldNudgeToCommit: boolean
+
+  readonly commitSpellcheckEnabled: boolean
 }
 
 interface IChangesState {
@@ -598,6 +607,7 @@ export class ChangesList extends React.Component<
       rebaseConflictState,
       workingDirectory,
       repository,
+      repositoryAccount,
       dispatcher,
       isCommitting,
       currentBranchProtected,
@@ -654,6 +664,7 @@ export class ChangesList extends React.Component<
         commitAuthor={this.props.commitAuthor}
         anyFilesSelected={anyFilesSelected}
         repository={repository}
+        repositoryAccount={repositoryAccount}
         dispatcher={dispatcher}
         commitMessage={this.props.commitMessage}
         focusCommitMessage={this.props.focusCommitMessage}
@@ -670,6 +681,7 @@ export class ChangesList extends React.Component<
         showBranchProtected={fileCount > 0 && currentBranchProtected}
         showNoWriteAccess={fileCount > 0 && !hasWritePermissionForRepository}
         shouldNudge={this.props.shouldNudgeToCommit}
+        commitSpellcheckEnabled={this.props.commitSpellcheckEnabled}
       />
     )
   }
@@ -771,7 +783,10 @@ export class ChangesList extends React.Component<
           selectedRows={this.state.selectedRows}
           selectionMode="multi"
           onSelectionChanged={this.props.onFileSelectionChanged}
-          invalidationProps={this.props.workingDirectory}
+          invalidationProps={{
+            workingDirectory: this.props.workingDirectory,
+            isCommitting: this.props.isCommitting,
+          }}
           onRowClick={this.props.onRowClick}
           onScroll={this.onScroll}
           setScrollTop={this.props.changesListScrollTop}
